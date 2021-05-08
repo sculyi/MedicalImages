@@ -61,20 +61,18 @@ class MSNet(nn.Module):
         return final
 
 
-
-
 class SCALayer(nn.Module):
-    def __init__(self, channel, reduction=16,size=128):
+    def __init__(self, channel, reduction=16):
         super(SCALayer, self).__init__()
+        reduction = min(channel,reduction)
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.SA = nn.Sequential(nn.Conv2d(channel, 1, (1, 1), bias=False),
-                                FReLU(in_channels=1)) # only SE
-
-        '''self.SA = nn.Sequential(nn.AdaptiveAvgPool2d((None,None)),
-                                nn.Conv2d(channel,1,(1,1),bias=False),
-                                FReLU(1),
-                                nn.Conv2d(1, 1, (1, 1), bias=False),
-                                nn.Sigmoid())'''
+        self.SA = nn.Sequential(nn.AdaptiveAvgPool2d((None, None)),
+                                Conv2d_samepadding(channel, channel//2, (3, 3), stride=1, bias=False),
+                                nn.BatchNorm2d(num_features=channel//2),
+                                nn.PReLU(channel//2),
+                                Conv2d_samepadding(channel//2, 1, (3, 3), stride=1, bias=False),
+                                nn.BatchNorm2d(num_features=1),
+                                nn.Sigmoid())
 
         self.fc = nn.Sequential(
             nn.Linear(channel, channel // reduction, bias=False),
@@ -87,13 +85,13 @@ class SCALayer(nn.Module):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
-        '''sa_ = self.SA(x)
-        return x*y*sa_
-        print(y.size(), sa_.size(), tmp.size())
-        exit()
+        sa_ = self.SA(x)
+        #TODO for test only, save the learned weights
+        #save_to_h5(sa_)
 
-        print(sa_.size())'''
-        return x * y.expand_as(x)
+        return x*y*sa_
+
+
 
 
 
